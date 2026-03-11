@@ -1,0 +1,97 @@
+{
+  "config_version": 1,
+  "objective": {
+    "text": "Calibrate a simulator with likelihood-free inference.",
+    "observed_path": "data/observed.json",
+    "observed_format": "auto",
+    "observed_output_names": [],
+    "observed_output_indices": [],
+    "likelihood_hint": "auto"
+  },
+  "model": {
+    "adapter": "python_callable",
+    "path": "model/model.py",
+    "callable": "simulate",
+    "call_style": "kwargs",
+    "command_template": null,
+    "working_directory": ".",
+    "runtime_hint": null,
+    "parameter_names": [
+      "theta"
+    ],
+    "parameter_defaults": {},
+    "output_names": [],
+    "observed_output_names": [],
+    "observed_output_indices": [],
+    "supports_batch": false,
+    "stochastic": null,
+    "timeout_seconds": 300
+  },
+  "priors": {
+    "theta": {
+      "dist": "uniform",
+      "params": {
+        "lower": 0.0,
+        "upper": 5.0
+      }
+    }
+  },
+  "summary_statistics": {
+    "kind": "identity",
+    "quantiles": [
+      0.1,
+      0.25,
+      0.5,
+      0.75,
+      0.9
+    ],
+    "lag_count": 3,
+    "path": null,
+    "callable": null,
+    "command_template": null
+  },
+  "distance": {
+    "metric": "rmse",
+    "custom_python_path": null,
+    "custom_callable": null,
+    "custom_command_template": null
+  },
+  "scaling": {
+    "enabled": true,
+    "mode": "zscore"
+  },
+  "algorithm": {
+    "name": "abc_rejection",
+    "random_seed": 7,
+    "two_phase": {
+      "pilot_size": 1000,
+      "epsilon_quantile": 0.05,
+      "main_budget": 20000,
+      "accepted_samples": 500,
+      "batch_size": 32,
+      "proceed_if_likelihood_available": false
+    }
+  },
+  "compute": {
+    "backend": "local",
+    "max_workers": "auto",
+    "chunk_size": 32
+  },
+  "posterior_predictive": {
+    "enabled": true,
+    "draws": 100
+  },
+  "visualization": {
+    "enabled": true,
+    "plots": [
+      "posterior_marginals",
+      "posterior_predictive",
+      "calibration_diagnostics"
+    ],
+    "dpi": 140
+  },
+  "output": {
+    "results_dir": "results",
+    "artifacts_dir": "artifacts"
+  }
+}

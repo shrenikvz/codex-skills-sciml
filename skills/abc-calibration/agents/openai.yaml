@@ -1,0 +1,4 @@
+interface:
+  display_name: "ABC Calibration"
+  short_description: "Likelihood-free parameter calibration"
+  default_prompt: "Use $abc-calibration to build and run a two-phase ABC-Rejection calibration workflow for a simulator or model, including priors, distance selection, posterior summaries, and posterior predictive checks."
