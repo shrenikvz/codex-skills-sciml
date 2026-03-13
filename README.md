@@ -1,8 +1,9 @@
 # Codex Skills for Scientific Machine Learning
 
-This repository contains Codex skills focused on scientific machine learning workflows. At the moment, the repository includes one production skill:
+This repository contains Codex skills focused on scientific machine learning workflows. At the moment, the repository includes two production skills:
 
 - `abc-calibration`: likelihood-free parameter estimation and simulator calibration with Approximate Bayesian Computation (ABC) rejection sampling
+- `nuts-bayesian-inference`: likelihood-based posterior sampling for tractable scientific models with BlackJAX NUTS
 
 ## Overview
 
@@ -17,6 +18,13 @@ Use `abc-calibration` for tasks such as:
 
 The skill supports Python callables, mathematical expressions wrapped into Python, and command-line simulators in other languages through generated adapters.
 
+Use `nuts-bayesian-inference` for tasks such as:
+
+- estimating posterior distributions when a tractable likelihood can be written down
+- calibrating differentiable or wrapped simulator models with adaptive NUTS sampling
+- running multi-chain BlackJAX workflows with diagnostics and posterior predictive checks
+- building reusable Bayesian inference projects with priors, transformations, diagnostics, and plots
+
 ## Repository Layout
 
 ```text
@@ -26,7 +34,12 @@ The skill supports Python callables, mathematical expressions wrapped into Pytho
 ├── scripts/
 │   └── install-all-skills.sh
 └── skills/
-    └── abc-calibration/
+    ├── abc-calibration/
+    │   ├── SKILL.md
+    │   ├── agents/
+    │   ├── references/
+    │   └── scripts/
+    └── nuts-bayesian-inference/
         ├── SKILL.md
         ├── agents/
         ├── references/
@@ -52,6 +65,24 @@ Primary references:
 - [skills/abc-calibration/references/quickstart.md](/Users/shrenikzinage/Documents/Purdue%20Research/Codes/github_repositaries/codex-skills-sciml/skills/abc-calibration/references/quickstart.md)
 - [skills/abc-calibration/references/model-adapters.md](/Users/shrenikzinage/Documents/Purdue%20Research/Codes/github_repositaries/codex-skills-sciml/skills/abc-calibration/references/model-adapters.md)
 
+### `nuts-bayesian-inference`
+
+General-purpose Bayesian inference for scientific and engineering models with tractable likelihoods using the No-U-Turn Sampler (NUTS), BlackJAX, and JAX.
+
+Key behavior:
+
+- inspects model inputs, outputs, observed-output mapping, and differentiability
+- constructs priors, likelihoods, parameter transformations, and optional scaling
+- uses BlackJAX window adaptation plus multi-chain NUTS sampling by default
+- reports R-hat, effective sample size, acceptance rates, energy diagnostics, divergences, and tree-depth warnings
+- supports posterior predictive checks and optional diagnostic plots
+
+Primary references:
+
+- [skills/nuts-bayesian-inference/SKILL.md](/Users/shrenikzinage/Documents/Purdue%20Research/Codes/github_repositaries/codex-skills-sciml/skills/nuts-bayesian-inference/SKILL.md)
+- [skills/nuts-bayesian-inference/references/quickstart.md](/Users/shrenikzinage/Documents/Purdue%20Research/Codes/github_repositaries/codex-skills-sciml/skills/nuts-bayesian-inference/references/quickstart.md)
+- [skills/nuts-bayesian-inference/references/model-adapters.md](/Users/shrenikzinage/Documents/Purdue%20Research/Codes/github_repositaries/codex-skills-sciml/skills/nuts-bayesian-inference/references/model-adapters.md)
+
 ## Installation
 
 ### Install this repository's skills
@@ -64,7 +95,7 @@ cd codex-skills-sciml
 ./scripts/install-all-skills.sh --force
 ```
 
-This installs every skill under `skills/` into `${CODEX_HOME:-$HOME/.codex}/skills`. Right now, that means `abc-calibration`.
+This installs every skill under `skills/` into `${CODEX_HOME:-$HOME/.codex}/skills`. Right now, that means `abc-calibration` and `nuts-bayesian-inference`.
 
 ### Install a single skill from GitHub
 
@@ -77,6 +108,14 @@ python3 ~/.codex/skills/.system/skill-installer/scripts/install-skill-from-githu
 ```
 
 Restart Codex after installation so the new skill is loaded.
+
+If you prefer installing only `nuts-bayesian-inference`, use:
+
+```bash
+python3 ~/.codex/skills/.system/skill-installer/scripts/install-skill-from-github.py \
+  --repo shrenikvz/codex-skills-sciml \
+  --path skills/nuts-bayesian-inference
+```
 
 ## Quick Start
 
@@ -110,6 +149,15 @@ cd abc-run
 python3 run.py
 ```
 
+For `nuts-bayesian-inference`, start with:
+
+```bash
+python3 ~/.codex/skills/nuts-bayesian-inference/scripts/nuts_bayesian_inference.py doctor
+python3 ~/.codex/skills/nuts-bayesian-inference/scripts/nuts_bayesian_inference.py inspect-model \
+  --model-path ./model.py \
+  --observed-path ./observed.json
+```
+
 ## Testing
 
 Unit tests for `abc-calibration` live in [skills/abc-calibration/scripts](/Users/shrenikzinage/Documents/Purdue%20Research/Codes/github_repositaries/codex-skills-sciml/skills/abc-calibration/scripts).
@@ -121,6 +169,17 @@ cd skills/abc-calibration/scripts
 PYTHONPATH=. python3 -m unittest -q \
   test_abc_calibration_unit.py \
   test_abc_calibration_cli_unit.py
+```
+
+Unit tests for `nuts-bayesian-inference` live in [skills/nuts-bayesian-inference/scripts](/Users/shrenikzinage/Documents/Purdue%20Research/Codes/github_repositaries/codex-skills-sciml/skills/nuts-bayesian-inference/scripts).
+
+Run them with:
+
+```bash
+cd skills/nuts-bayesian-inference/scripts
+PYTHONPATH=. python3 -m unittest -q \
+  test_nuts_inference_unit.py \
+  test_nuts_inference_cli_unit.py
 ```
 
 ## Notes
