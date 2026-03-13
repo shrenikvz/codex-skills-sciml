@@ -1,0 +1,132 @@
+{
+  "config_version": 1,
+  "objective": {
+    "text": "Train a PINN for a differential-equation-constrained problem",
+    "problem_type": "auto",
+    "observation_path": "data/observations.csv",
+    "input_columns": [],
+    "output_columns": [],
+    "context_columns": [],
+    "unknown_parameters": []
+  },
+  "problem": {
+    "path": "problem/problem.json",
+    "format": "json",
+    "callable": null,
+    "independent_variables": ["x", "t"],
+    "dependent_variables": ["u"],
+    "domains": {
+      "x": {"min": 0.0, "max": 1.0},
+      "t": {"min": 0.0, "max": 1.0}
+    },
+    "equations": [
+      {"name": "heat", "expression": "u__t - alpha * u__xx", "weight": 1.0}
+    ],
+    "boundary_conditions": [
+      {"location": {"x": "min"}, "type": "dirichlet", "field": "u", "value": "0.0"},
+      {"location": {"x": "max"}, "type": "dirichlet", "field": "u", "value": "0.0"}
+    ],
+    "initial_conditions": [
+      {"location": {"t": "min"}, "type": "dirichlet", "field": "u", "value": "sin(pi * x)"}
+    ],
+    "algebraic_constraints": [],
+    "constitutive_relations": [],
+    "parameters": {
+      "alpha": {"value": 0.1, "trainable": false, "bounds": [0.0001, 1.0]}
+    },
+    "unknown_parameters": [],
+    "analytical_solution": null
+  },
+  "model": {
+    "framework": "auto",
+    "architecture": "fourier",
+    "hidden_layers": 6,
+    "hidden_units": 128,
+    "activation": "tanh",
+    "residual_blocks": 0,
+    "fourier_features": {
+      "enabled": true,
+      "num_features": 64,
+      "sigma": 2.0
+    },
+    "multiscale": {
+      "enabled": false,
+      "scales": [1.0, 2.0, 4.0]
+    },
+    "transformer": {
+      "enabled": false,
+      "width": 128,
+      "heads": 4,
+      "layers": 4,
+      "context_dim": 0
+    },
+    "adaptive_activation": false
+  },
+  "sampling": {
+    "strategy": "sobol",
+    "interior_points": 4096,
+    "boundary_points": 512,
+    "initial_points": 512,
+    "validation_points": 1024,
+    "adaptive": {
+      "enabled": true,
+      "interval": 250,
+      "candidate_pool": 4096,
+      "top_k": 512
+    }
+  },
+  "loss": {
+    "weighting_strategy": "gradient_norm",
+    "weights": {
+      "pde": 1.0,
+      "bc": 1.0,
+      "ic": 1.0,
+      "data": 1.0,
+      "algebraic": 1.0
+    }
+  },
+  "training": {
+    "optimizer": "hybrid",
+    "learning_rate": 0.001,
+    "epochs": 5000,
+    "adam_epochs": 4000,
+    "lbfgs_steps": 500,
+    "batch_size": null,
+    "gradient_clip_norm": 1.0,
+    "early_stopping_patience": 500,
+    "log_interval": 50,
+    "seed": 7,
+    "domain_decomposition": {
+      "enabled": false,
+      "num_subdomains": 1
+    }
+  },
+  "stabilization": {
+    "coordinate_scaling": "auto",
+    "residual_normalization": "auto",
+    "gradient_clipping": "auto",
+    "fourier_features": "auto",
+    "adaptive_activation": "auto",
+    "domain_decomposition": "auto"
+  },
+  "compute": {
+    "device_preference": "auto",
+    "distributed": false,
+    "data_parallel": "auto",
+    "mixed_precision": false
+  },
+  "evaluation": {
+    "prediction_points": 1024,
+    "residual_points": 2048,
+    "uncertainty_method": "none"
+  },
+  "visualization": {
+    "enabled": true,
+    "plots": ["solution_field", "loss_curves"],
+    "dpi": 140
+  },
+  "output": {
+    "results_dir": "results",
+    "artifacts_dir": "artifacts"
+  }
+}

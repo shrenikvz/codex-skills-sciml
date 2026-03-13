@@ -1,9 +1,10 @@
 # Codex Skills for Scientific Machine Learning
 
-This repository contains Codex skills focused on scientific machine learning workflows. At the moment, the repository includes two production skills:
+This repository contains Codex skills focused on scientific machine learning workflows. At the moment, the repository includes three production skills:
 
 - `abc-calibration`: likelihood-free parameter estimation and simulator calibration with Approximate Bayesian Computation (ABC) rejection sampling
 - `nuts-bayesian-inference`: likelihood-based posterior sampling for tractable scientific models with BlackJAX NUTS
+- `physics-informed-neural-networks`: forward and inverse differential-equation-constrained learning with Physics-Informed Neural Networks (PINNs)
 
 ## Overview
 
@@ -25,6 +26,13 @@ Use `nuts-bayesian-inference` for tasks such as:
 - running multi-chain BlackJAX workflows with diagnostics and posterior predictive checks
 - building reusable Bayesian inference projects with priors, transformations, diagnostics, and plots
 
+Use `physics-informed-neural-networks` for tasks such as:
+
+- solving ODEs and PDEs with PINNs under boundary and initial conditions
+- inferring unknown physical parameters from sparse observations
+- combining data losses with physics residuals in a reusable training project
+- generating collocation samplers, diagnostics, predictions, and physics-aware visualizations
+
 ## Repository Layout
 
 ```text
@@ -39,6 +47,11 @@ Use `nuts-bayesian-inference` for tasks such as:
     │   ├── agents/
     │   ├── references/
     │   └── scripts/
+    ├── physics-informed-neural-networks/
+    │   ├── SKILL.md
+    │   ├── agents/
+    │   ├── references/
+    │   └── scripts/
     └── nuts-bayesian-inference/
         ├── SKILL.md
         ├── agents/
@@ -46,7 +59,7 @@ Use `nuts-bayesian-inference` for tasks such as:
         └── scripts/
 ```
 
-## Available Skill
+## Available Skills
 
 ### `abc-calibration`
 
@@ -83,6 +96,23 @@ Primary references:
 - [skills/nuts-bayesian-inference/references/quickstart.md](/Users/shrenikzinage/Documents/Purdue%20Research/Codes/github_repositaries/codex-skills-sciml/skills/nuts-bayesian-inference/references/quickstart.md)
 - [skills/nuts-bayesian-inference/references/model-adapters.md](/Users/shrenikzinage/Documents/Purdue%20Research/Codes/github_repositaries/codex-skills-sciml/skills/nuts-bayesian-inference/references/model-adapters.md)
 
+### `physics-informed-neural-networks`
+
+General-purpose training and evaluation of Physics-Informed Neural Networks (PINNs) for forward problems, inverse parameter inference, data-assisted physics learning, and operator-learning-style setups governed by ODEs, PDEs, algebraic constraints, conservation laws, and constitutive relations.
+
+Key behavior:
+
+- inspects a physics problem specification before training
+- infers variables, domains, conditions, and observation mappings
+- recommends architectures, sampling strategies, loss weighting, and stabilization
+- scaffolds portable PINN projects with diagnostics, predictions, and optional figures
+
+Primary references:
+
+- [skills/physics-informed-neural-networks/SKILL.md](/Users/shrenikzinage/Documents/Purdue%20Research/Codes/github_repositaries/codex-skills-sciml/skills/physics-informed-neural-networks/SKILL.md)
+- [skills/physics-informed-neural-networks/references/quickstart.md](/Users/shrenikzinage/Documents/Purdue%20Research/Codes/github_repositaries/codex-skills-sciml/skills/physics-informed-neural-networks/references/quickstart.md)
+- [skills/physics-informed-neural-networks/references/problem-adapters.md](/Users/shrenikzinage/Documents/Purdue%20Research/Codes/github_repositaries/codex-skills-sciml/skills/physics-informed-neural-networks/references/problem-adapters.md)
+
 ## Installation
 
 ### Install this repository's skills
@@ -95,7 +125,7 @@ cd codex-skills-sciml
 ./scripts/install-all-skills.sh --force
 ```
 
-This installs every skill under `skills/` into `${CODEX_HOME:-$HOME/.codex}/skills`. Right now, that means `abc-calibration` and `nuts-bayesian-inference`.
+This installs every skill under `skills/` into `${CODEX_HOME:-$HOME/.codex}/skills`. Right now, that means `abc-calibration`, `nuts-bayesian-inference`, and `physics-informed-neural-networks`.
 
 ### Install a single skill from GitHub
 
@@ -115,6 +145,14 @@ If you prefer installing only `nuts-bayesian-inference`, use:
 python3 ~/.codex/skills/.system/skill-installer/scripts/install-skill-from-github.py \
   --repo shrenikvz/codex-skills-sciml \
   --path skills/nuts-bayesian-inference
+```
+
+If you prefer installing only `physics-informed-neural-networks`, use:
+
+```bash
+python3 ~/.codex/skills/.system/skill-installer/scripts/install-skill-from-github.py \
+  --repo shrenikvz/codex-skills-sciml \
+  --path skills/physics-informed-neural-networks
 ```
 
 ## Quick Start
@@ -158,6 +196,15 @@ python3 ~/.codex/skills/nuts-bayesian-inference/scripts/nuts_bayesian_inference.
   --observed-path ./observed.json
 ```
 
+For `physics-informed-neural-networks`, start with:
+
+```bash
+python3 ~/.codex/skills/physics-informed-neural-networks/scripts/physics_informed_neural_networks.py doctor
+python3 ~/.codex/skills/physics-informed-neural-networks/scripts/physics_informed_neural_networks.py inspect-problem \
+  --problem-path ./problem.json \
+  --observed-path ./observations.csv
+```
+
 ## Testing
 
 Unit tests for `abc-calibration` live in [skills/abc-calibration/scripts](/Users/shrenikzinage/Documents/Purdue%20Research/Codes/github_repositaries/codex-skills-sciml/skills/abc-calibration/scripts).
@@ -180,6 +227,17 @@ cd skills/nuts-bayesian-inference/scripts
 PYTHONPATH=. python3 -m unittest -q \
   test_nuts_inference_unit.py \
   test_nuts_inference_cli_unit.py
+```
+
+Unit tests for `physics-informed-neural-networks` live in [skills/physics-informed-neural-networks/scripts](/Users/shrenikzinage/Documents/Purdue%20Research/Codes/github_repositaries/codex-skills-sciml/skills/physics-informed-neural-networks/scripts).
+
+Run them with:
+
+```bash
+cd skills/physics-informed-neural-networks/scripts
+PYTHONPATH=. python3 -m unittest -q \
+  test_physics_informed_neural_networks_unit.py \
+  test_physics_informed_neural_networks_cli_unit.py
 ```
 
 ## Notes

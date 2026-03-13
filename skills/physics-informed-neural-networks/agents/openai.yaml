@@ -1,0 +1,4 @@
+interface:
+  display_name: "Physics-Informed Neural Networks"
+  short_description: "PINN training for ODEs and PDEs"
+  default_prompt: "Use $physics-informed-neural-networks to inspect a physics problem definition, classify it as a forward, inverse, data-assisted, or operator-learning PINN task, scaffold a reusable project with an appropriate architecture and sampling strategy, run training with diagnostics, and return predictions, inferred parameters, residual summaries, and requested visualizations."
