@@ -1,0 +1,5 @@
+interface:
+  display_name: "NUTS Calibration"
+  short_description: "Bayesian calibration with BlackJAX NUTS"
+  default_prompt: "Use $nuts-calibration to inspect a model and observed data, infer priors and likelihoods, configure transforms and scaling, scaffold a reusable BlackJAX NUTS project, run adaptive warmup and sampling, and return posterior summaries, diagnostics, posterior predictive checks, and requested visualizations."
+

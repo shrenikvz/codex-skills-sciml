@@ -1,4 +1,0 @@
-interface:
-  display_name: "NUTS Bayesian Inference"
-  short_description: "BlackJAX NUTS posterior sampling"
-  default_prompt: "Use $nuts-bayesian-inference to inspect a scientific model and observed data, construct priors and a tractable likelihood, scaffold a reusable BlackJAX NUTS project with JAX-based or numerical-gradient log-posterior evaluation, run adaptive warmup and multi-chain sampling, and return diagnostics plus posterior predictive checks."

@@ -1,0 +1,132 @@
+{
+  "config_version": 1,
+  "objective": {
+    "text": "Calibrate a model with NUTS",
+    "observed_path": "data/observed.json",
+    "observed_format": "auto",
+    "observed_output_names": [],
+    "observed_output_indices": [],
+    "noise_structure": "gaussian"
+  },
+  "model": {
+    "adapter": "python_callable",
+    "path": "model/model.py",
+    "callable": "simulate",
+    "call_style": "kwargs",
+    "command_template": null,
+    "working_directory": ".",
+    "runtime_hint": null,
+    "parameter_names": ["theta", "sigma"],
+    "parameter_defaults": {},
+    "parameter_constraints": {
+      "sigma": [0.0, null]
+    },
+    "output_names": [],
+    "observed_output_names": [],
+    "observed_output_indices": [],
+    "supports_batch": false,
+    "stochastic": false,
+    "differentiable": true,
+    "gradient_strategy": "jax_autodiff",
+    "timeout_seconds": 300
+  },
+  "priors": {
+    "theta": {
+      "dist": "normal",
+      "params": {
+        "mean": 0.0,
+        "std": 1.0
+      }
+    },
+    "sigma": {
+      "dist": "halfnormal",
+      "params": {
+        "scale": 1.0,
+        "lower": 0.0
+      }
+    }
+  },
+  "likelihood": {
+    "name": "gaussian",
+    "params": {
+      "sigma": 0.1
+    },
+    "custom_python_path": null,
+    "custom_callable": null,
+    "custom_command_template": null
+  },
+  "transformations": {
+    "mode": "auto",
+    "parameters": {
+      "theta": {
+        "kind": "identity",
+        "lower": null,
+        "upper": null,
+        "reason": "unconstrained_theta"
+      },
+      "sigma": {
+        "kind": "softplus",
+        "lower": 0.0,
+        "upper": null,
+        "reason": "non_negative_support"
+      }
+    }
+  },
+  "scaling": {
+    "enabled": true,
+    "mode": "zscore",
+    "center": [],
+    "scale": []
+  },
+  "algorithm": {
+    "name": "nuts",
+    "backend": "blackjax",
+    "random_seed": 7,
+    "warmup": {
+      "num_steps": 1000,
+      "target_acceptance": 0.8,
+      "mass_matrix": "diagonal",
+      "initial_step_size": null
+    },
+    "sampling": {
+      "num_samples": 1000,
+      "num_chains": 4,
+      "max_tree_depth": 10,
+      "thin": 1,
+      "store_warmup": false
+    }
+  },
+  "compute": {
+    "device_preference": "auto",
+    "chain_method": "auto",
+    "jit": "auto",
+    "enable_x64": false
+  },
+  "posterior_predictive": {
+    "enabled": true,
+    "draws": 200
+  },
+  "visualization": {
+    "enabled": true,
+    "plots": [
+      "posterior_marginals",
+      "trace",
+      "posterior_predictive"
+    ],
+    "dpi": 140
+  },
+  "backend_options": {
+    "blackjax": {
+      "progress_bar": false
+    },
+    "numpyro": {},
+    "pymc": {},
+    "stan": {},
+    "tensorflow_probability": {}
+  },
+  "output": {
+    "results_dir": "results",
+    "artifacts_dir": "artifacts"
+  }
+}
+
