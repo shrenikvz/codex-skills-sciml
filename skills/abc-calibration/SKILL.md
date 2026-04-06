@@ -21,7 +21,8 @@ This skill enforces a strict gating rule:
 1. Inspect the model and observed data first.
 2. Decide whether a tractable likelihood probably exists.
 3. If likelihood-based inference is feasible, recommend MCMC or variational inference before running ABC.
-4. Use ABC-Rejection only when the likelihood is unavailable, implicit, or intractable, or when the user explicitly insists on ABC.
+4. Require explicit user-provided prior bounds for every inferred parameter before creating a project or running ABC.
+5. Use ABC-Rejection only when the likelihood is unavailable, implicit, or intractable, or when the user explicitly insists on ABC.
 
 ## First-run workflow
 
@@ -34,6 +35,8 @@ python3 ~/.codex/skills/abc-calibration/scripts/abc_calibration.py inspect-model
   --request-text "Calibrate this stochastic simulator with ABC rejection"
 ```
 
+If bounds are missing, stop and ask the user to provide them before proceeding with project creation or calibration.
+
 Then create a runnable project:
 
 ```bash
@@ -41,6 +44,7 @@ python3 ~/.codex/skills/abc-calibration/scripts/abc_calibration.py create-projec
   --project-dir ./abc-run \
   --model-path ./model.py \
   --observed-path ./observed.json \
+  --parameter-bound theta=0:5 \
   --request-text "Estimate parameters with likelihood-free calibration" \
   --pilot-size 1000 \
   --main-budget 20000 \
@@ -84,9 +88,10 @@ Model adapter behavior:
    - which outputs are observed
    - missing parameter names for black-box command adapters
    - nonstandard command wrapper contracts
-4. Build priors:
-   - use user priors directly when provided
-   - otherwise infer priors from parameter names, defaults, bounds, and common domain heuristics
+4. Require explicit prior bounds for every parameter:
+   - if bounds are missing, ask the user to provide them and stop before calibration
+   - if the user provides only bounds, build a uniform prior on those exact bounds
+   - if the user provides a prior family, keep that family but enforce the exact same bounds during sampling
 5. Assess likelihood availability.
 6. Choose scaling, summary statistics, and distance metric.
 7. Run two-phase ABC-Rejection:
@@ -108,8 +113,11 @@ Prior behavior:
 
 - `--prior-file priors.json` for explicit priors
 - `--prior theta=uniform(0,5)` for direct overrides
-- `--parameter-bound theta=0:5` for bound-driven inference
-- if priors are missing, infer them heuristically and record provenance in `results/prior_report.json`
+- `--parameter-bound theta=0:5` for exact parameter bounds
+- explicit bounds are mandatory for every parameter before ABC project creation or calibration
+- when `--parameter-bound` is provided, those exact bounds are enforced without heuristic adjustment
+- if a prior family is provided, the skill keeps the family but still enforces the exact user-provided bounds
+- if bounds are missing, ask the user for them and do not proceed with ABC estimation or calibration
 
 Hyperparameters are configurable in `config.json` or during `create-project`:
 

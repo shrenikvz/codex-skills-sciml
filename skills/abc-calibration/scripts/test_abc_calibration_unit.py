@@ -9,8 +9,7 @@ sys.path.insert(0, str(SCRIPT_DIR))
 
 from abc_calibration_lib.config import clone_default_config
 from abc_calibration_lib.inference import InferenceError, run_calibration
-from abc_calibration_lib.project import inspect_model_inputs
-from abc_calibration_lib.priors import recommend_prior
+from abc_calibration_lib.project import ProjectError, create_project, inspect_model_inputs
 
 
 MODEL_SOURCE = '''from __future__ import annotations
@@ -22,11 +21,7 @@ def simulate(theta):
 
 
 class AbcCalibrationUnitTests(unittest.TestCase):
-    def test_recommend_prior_probability_name(self):
-        spec = recommend_prior("mixing_probability")
-        self.assertEqual(spec["dist"], "beta")
-
-    def test_inspect_model_infers_python_signature(self):
+    def test_inspect_model_requests_bounds_before_proceeding(self):
         with tempfile.TemporaryDirectory() as td:
             root = pathlib.Path(td)
             model_path = root / "model.py"
@@ -36,7 +31,28 @@ class AbcCalibrationUnitTests(unittest.TestCase):
             info = inspect_model_inputs(str(model_path), str(observed_path))
         self.assertEqual(info["model_analysis"]["adapter"], "python_callable")
         self.assertEqual(info["model_analysis"]["parameter_names"], ["theta"])
-        self.assertIn("theta", info["prior_report"]["priors"])
+        self.assertEqual(info["prior_report"]["priors"], {})
+        self.assertEqual(info["prior_report"]["missing_bounds"], ["theta"])
+        self.assertFalse(info["prior_report"]["ready"])
+        self.assertTrue(any("theta" in question for question in info["pending_questions"]))
+
+    def test_create_project_requires_explicit_bounds(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = pathlib.Path(td)
+            model_path = root / "model.py"
+            project_dir = root / "project"
+            observed_path = root / "observed.json"
+            model_path.write_text(MODEL_SOURCE, encoding="utf-8")
+            observed_path.write_text(json.dumps([2.0, 3.0, 4.0]), encoding="utf-8")
+
+            with self.assertRaises(ProjectError) as exc:
+                create_project(
+                    project_dir=str(project_dir),
+                    model_path=str(model_path),
+                    observed_path=str(observed_path),
+                )
+
+        self.assertIn("Explicit prior bounds are required", str(exc.exception))
 
     def test_two_phase_abc_recovers_scalar_parameter(self):
         with tempfile.TemporaryDirectory() as td:
@@ -117,6 +133,40 @@ class AbcCalibrationUnitTests(unittest.TestCase):
             )
             with self.assertRaises(InferenceError):
                 run_calibration(cfg, workdir=root)
+
+    def test_run_requires_bounded_priors(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = pathlib.Path(td)
+            model_path = root / "model.py"
+            model_path.write_text(MODEL_SOURCE, encoding="utf-8")
+            observed_path = root / "observed.json"
+            observed_path.write_text(json.dumps([2.0, 3.0, 4.0]), encoding="utf-8")
+
+            cfg = clone_default_config()
+            cfg["objective"]["observed_path"] = str(observed_path)
+            cfg["model"].update(
+                {
+                    "adapter": "python_callable",
+                    "path": str(model_path),
+                    "callable": "simulate",
+                    "call_style": "kwargs",
+                    "parameter_names": ["theta"],
+                }
+            )
+            cfg["priors"] = {"theta": {"dist": "normal", "params": {"mean": 2.0, "std": 0.5}}}
+            cfg["algorithm"]["two_phase"].update(
+                {
+                    "pilot_size": 10,
+                    "accepted_samples": 3,
+                    "main_budget": 20,
+                    "epsilon_quantile": 0.2,
+                }
+            )
+
+            with self.assertRaises(InferenceError) as exc:
+                run_calibration(cfg, workdir=root)
+
+        self.assertIn("Explicit prior bounds are required", str(exc.exception))
 
 
 if __name__ == "__main__":

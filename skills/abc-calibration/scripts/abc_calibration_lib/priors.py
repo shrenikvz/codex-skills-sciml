@@ -6,7 +6,7 @@ import json
 import math
 import re
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 import numpy as np
 
@@ -68,6 +68,28 @@ _NORMAL_HINTS = {
     "loc",
 }
 
+
+
+def _normalize_support(raw_support: Any) -> dict[str, float] | None:
+    if raw_support is None:
+        return None
+    if not isinstance(raw_support, dict):
+        raise PriorError("Prior support must be an object with lower and upper.")
+    if "lower" not in raw_support or "upper" not in raw_support:
+        raise PriorError("Prior support requires lower and upper.")
+    lower = float(raw_support["lower"])
+    upper = float(raw_support["upper"])
+    if not lower < upper:
+        raise PriorError("Prior support requires lower < upper.")
+    return {"lower": lower, "upper": upper}
+
+
+def bounds_match(left: tuple[float, float], right: tuple[float, float], atol: float = 1e-12) -> bool:
+    return math.isclose(float(left[0]), float(right[0]), abs_tol=atol) and math.isclose(
+        float(left[1]),
+        float(right[1]),
+        abs_tol=atol,
+    )
 
 
 def load_prior_file(path: str | None) -> dict[str, Any]:
@@ -166,12 +188,17 @@ def normalize_prior_spec(spec: dict[str, Any]) -> dict[str, Any]:
     if dist not in _ALLOWED_DISTS:
         raise PriorError(f"Unsupported prior distribution: {dist}")
     params = dict(spec.get("params", {}))
+    support = _normalize_support(spec.get("support"))
+    if dist not in {"uniform", "beta"} and support is None and "lower" in params and "upper" in params:
+        support = _normalize_support({"lower": params.pop("lower"), "upper": params.pop("upper")})
     if dist == "uniform":
         lower = float(params.get("lower"))
         upper = float(params.get("upper"))
         if not lower < upper:
             raise PriorError("Uniform prior requires lower < upper.")
         params = {"lower": lower, "upper": upper}
+        if support is not None and not bounds_match((lower, upper), (support["lower"], support["upper"])):
+            raise PriorError("Uniform prior bounds conflict with explicit support.")
     elif dist == "normal":
         mean = float(params.get("mean", 0.0))
         std = float(params.get("std", 1.0))
@@ -200,7 +227,68 @@ def normalize_prior_spec(spec: dict[str, Any]) -> dict[str, Any]:
         if not lower < upper:
             raise PriorError("Scaled beta prior requires lower < upper.")
         params = {"alpha": alpha, "beta": beta, "lower": lower, "upper": upper}
-    return {"dist": dist, "params": params}
+        if support is not None and not bounds_match((lower, upper), (support["lower"], support["upper"])):
+            raise PriorError("Beta prior bounds conflict with explicit support.")
+    normalized = {"dist": dist, "params": params}
+    if support is not None:
+        normalized["support"] = support
+    return normalized
+
+
+def extract_prior_bounds(spec: dict[str, Any]) -> tuple[float, float] | None:
+    normalized = normalize_prior_spec(spec)
+    params = normalized["params"]
+    if normalized["dist"] in {"uniform", "beta"}:
+        return (float(params["lower"]), float(params["upper"]))
+    support = normalized.get("support")
+    if support is None:
+        return None
+    return (float(support["lower"]), float(support["upper"]))
+
+
+def apply_exact_bounds(spec: dict[str, Any], bounds: tuple[float, float]) -> dict[str, Any]:
+    lower = float(bounds[0])
+    upper = float(bounds[1])
+    if not lower < upper:
+        raise PriorError("Exact bounds require lower < upper.")
+    normalized = normalize_prior_spec(spec)
+    if normalized["dist"] == "uniform":
+        normalized["params"]["lower"] = lower
+        normalized["params"]["upper"] = upper
+        normalized.pop("support", None)
+        return normalized
+    if normalized["dist"] == "beta":
+        normalized["params"]["lower"] = lower
+        normalized["params"]["upper"] = upper
+        normalized.pop("support", None)
+        return normalized
+    if normalized["dist"] in {"lognormal", "gamma"} and upper <= 0:
+        raise PriorError(f"{normalized['dist']} prior cannot satisfy an exact upper bound <= 0.")
+    normalized["support"] = {"lower": lower, "upper": upper}
+    return normalized
+
+
+def require_exact_prior_bounds(
+    parameter_names: list[str],
+    priors: dict[str, dict[str, Any]],
+) -> dict[str, dict[str, Any]]:
+    normalized: dict[str, dict[str, Any]] = {}
+    missing: list[str] = []
+    for name in parameter_names:
+        spec = priors.get(name)
+        if spec is None:
+            continue
+        bounds = extract_prior_bounds(spec)
+        if bounds is None:
+            missing.append(name)
+            continue
+        normalized[name] = apply_exact_bounds(spec, bounds)
+    if missing:
+        joined = ", ".join(missing)
+        raise PriorError(
+            f"Explicit prior bounds are required for ABC calibration. Please provide bounds for: {joined}."
+        )
+    return normalized
 
 
 
@@ -244,33 +332,61 @@ def default_point(spec: dict[str, Any]) -> float:
     spec = normalize_prior_spec(spec)
     dist = spec["dist"]
     params = spec["params"]
+    bounds = extract_prior_bounds(spec)
     if dist == "uniform":
         return 0.5 * (params["lower"] + params["upper"])
     if dist == "normal":
-        return params["mean"]
+        value = params["mean"]
+        if bounds is not None:
+            return min(max(value, bounds[0]), bounds[1])
+        return value
     if dist == "lognormal":
-        return math.exp(params["mean"])
+        value = math.exp(params["mean"])
+        if bounds is not None:
+            return min(max(value, bounds[0]), bounds[1])
+        return value
     if dist == "gamma":
-        return params["shape"] * params["scale"]
+        value = params["shape"] * params["scale"]
+        if bounds is not None:
+            return min(max(value, bounds[0]), bounds[1])
+        return value
     if dist == "beta":
         mean = params["alpha"] / (params["alpha"] + params["beta"])
         return params["lower"] + (params["upper"] - params["lower"]) * mean
     raise PriorError(f"Unsupported prior distribution: {dist}")
 
 
+def _sample_with_support(
+    draw: Callable[[], float],
+    bounds: tuple[float, float] | None,
+    dist: str,
+    max_attempts: int = 10_000,
+) -> float:
+    if bounds is None:
+        return float(draw())
+    lower, upper = bounds
+    for _ in range(max_attempts):
+        value = float(draw())
+        if lower <= value <= upper:
+            return value
+    raise PriorError(
+        f"Could not sample {dist} prior within exact bounds [{lower}, {upper}] after {max_attempts} attempts."
+    )
+
 
 def sample_prior(spec: dict[str, Any], rng: np.random.Generator) -> float:
     spec = normalize_prior_spec(spec)
     dist = spec["dist"]
     params = spec["params"]
+    bounds = extract_prior_bounds(spec)
     if dist == "uniform":
         return float(rng.uniform(params["lower"], params["upper"]))
     if dist == "normal":
-        return float(rng.normal(params["mean"], params["std"]))
+        return _sample_with_support(lambda: rng.normal(params["mean"], params["std"]), bounds, dist)
     if dist == "lognormal":
-        return float(rng.lognormal(params["mean"], params["sigma"]))
+        return _sample_with_support(lambda: rng.lognormal(params["mean"], params["sigma"]), bounds, dist)
     if dist == "gamma":
-        return float(rng.gamma(params["shape"], params["scale"]))
+        return _sample_with_support(lambda: rng.gamma(params["shape"], params["scale"]), bounds, dist)
     if dist == "beta":
         unit = float(rng.beta(params["alpha"], params["beta"]))
         return float(params["lower"] + (params["upper"] - params["lower"]) * unit)
@@ -287,9 +403,14 @@ def summarize_priors(priors: dict[str, dict[str, Any]]) -> dict[str, Any]:
     out = {}
     for name, spec in priors.items():
         normalized = normalize_prior_spec(spec)
+        bounds = extract_prior_bounds(normalized)
         out[name] = {
             "dist": normalized["dist"],
             "params": normalized["params"],
             "default_point": default_point(normalized),
         }
+        if bounds is not None:
+            out[name]["bounds"] = {"lower": float(bounds[0]), "upper": float(bounds[1])}
+        if "support" in normalized:
+            out[name]["support"] = normalized["support"]
     return out

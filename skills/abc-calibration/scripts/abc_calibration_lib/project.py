@@ -78,10 +78,11 @@ def _write_runbook(path: Path) -> None:
         """# ABC Calibration Runbook
 
 1. Review `config.json` and resolve any pending clarification questions recorded in `project_summary.json`.
-2. Adjust priors, observed outputs, hyperparameters, and requested plots as needed.
-3. Run `python3 run.py` from this folder.
-4. Inspect `results/run_summary.json`, `results/posterior_summary.json`, and optional figures.
-5. If the simulator is slow, increase `compute.max_workers` or reduce pilot/main budgets before rerunning.
+2. Confirm the prior bounds in `config.json` match the exact user-provided bounds before running.
+3. Adjust priors, observed outputs, hyperparameters, and requested plots as needed.
+4. Run `python3 run.py` from this folder.
+5. Inspect `results/run_summary.json`, `results/posterior_summary.json`, and optional figures.
+6. If the simulator is slow, increase `compute.max_workers` or reduce pilot/main budgets before rerunning.
 """,
         encoding="utf-8",
     )
@@ -155,6 +156,7 @@ def inspect_model_inputs(
         observed_size=observed_analysis.get("size") if observed_analysis else 1,
     )
     visual = detect_visualization_defaults(plots)
+    pending_questions = output_map.get("questions", []) + prior_report.get("questions", [])
     return {
         "model_analysis": model_analysis,
         "observed_analysis": {
@@ -170,7 +172,7 @@ def inspect_model_inputs(
         "distance_recommendation": distance,
         "hyperparameter_recommendation": hyper,
         "visualization_recommendation": visual,
-        "pending_questions": output_map.get("questions", []),
+        "pending_questions": pending_questions,
     }
 
 
@@ -203,16 +205,6 @@ def create_project(
     root = Path(project_dir).expanduser().resolve()
     if root.exists() and any(root.iterdir()) and not overwrite:
         raise ProjectError(f"Project directory already exists and is not empty: {root}")
-    root.mkdir(parents=True, exist_ok=True)
-    data_dir = root / "data"
-    model_dir = root / "model"
-    results_dir = root / "results"
-    artifacts_dir = root / "artifacts"
-    data_dir.mkdir(parents=True, exist_ok=True)
-    model_dir.mkdir(parents=True, exist_ok=True)
-    results_dir.mkdir(parents=True, exist_ok=True)
-    artifacts_dir.mkdir(parents=True, exist_ok=True)
-
     inspection = inspect_model_inputs(
         model_path=model_path,
         observed_path=observed_path,
@@ -231,6 +223,22 @@ def create_project(
         likelihood_hint=likelihood_hint,
         plots=plots,
     )
+    if not inspection["prior_report"].get("ready", False):
+        missing = inspection["prior_report"].get("missing_bounds", [])
+        joined = ", ".join(missing) if missing else "all parameters"
+        raise ProjectError(
+            f"Explicit prior bounds are required before creating an ABC project. Please provide bounds for: {joined}."
+        )
+
+    root.mkdir(parents=True, exist_ok=True)
+    data_dir = root / "data"
+    model_dir = root / "model"
+    results_dir = root / "results"
+    artifacts_dir = root / "artifacts"
+    data_dir.mkdir(parents=True, exist_ok=True)
+    model_dir.mkdir(parents=True, exist_ok=True)
+    results_dir.mkdir(parents=True, exist_ok=True)
+    artifacts_dir.mkdir(parents=True, exist_ok=True)
 
     cfg = clone_default_config()
     cfg["objective"]["text"] = request_text or ""
@@ -333,6 +341,7 @@ def create_project(
         "hyperparameters": cfg["algorithm"]["two_phase"],
         "notes": [
             "If the likelihood is tractable, prefer MCMC or VI unless you explicitly want likelihood-free calibration.",
+            "ABC calibration requires explicit user-provided bounds for every parameter and uses those bounds exactly.",
             "For non-Python models, verify model/run_model.sh matches the simulator's CLI contract before running.",
         ],
     }

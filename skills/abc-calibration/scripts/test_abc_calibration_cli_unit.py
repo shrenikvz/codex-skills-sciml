@@ -44,6 +44,31 @@ class AbcCalibrationCliUnitTests(unittest.TestCase):
             inspect_payload = json.loads(inspect_proc.stdout)
             self.assertTrue(inspect_payload["ok"])
             self.assertEqual(inspect_payload["result"]["model_analysis"]["parameter_names"], ["theta"])
+            self.assertEqual(inspect_payload["result"]["prior_report"]["missing_bounds"], ["theta"])
+            self.assertTrue(
+                any("theta" in question for question in inspect_payload["result"]["pending_questions"])
+            )
+
+            missing_bounds_proc = subprocess.run(
+                [
+                    sys.executable,
+                    str(script),
+                    "create-project",
+                    "--project-dir",
+                    str(project_dir),
+                    "--model-path",
+                    str(model_path),
+                    "--observed-path",
+                    str(observed_path),
+                ],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(missing_bounds_proc.returncode, 1)
+            missing_payload = json.loads(missing_bounds_proc.stdout)
+            self.assertFalse(missing_payload["ok"])
+            self.assertIn("Explicit prior bounds are required", missing_payload["error"])
 
             create_proc = subprocess.run(
                 [
@@ -56,6 +81,8 @@ class AbcCalibrationCliUnitTests(unittest.TestCase):
                     str(model_path),
                     "--observed-path",
                     str(observed_path),
+                    "--parameter-bound",
+                    "theta=0:4",
                     "--pilot-size",
                     "60",
                     "--main-budget",

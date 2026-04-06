@@ -32,7 +32,7 @@ python3 ~/.codex/skills/abc-calibration/scripts/abc_calibration.py inspect-model
 Inspection returns:
 
 - inferred parameter names and defaults
-- prior recommendations
+- required prior-bound questions when bounds are missing
 - likelihood assessment
 - scaling, summary statistic, and distance recommendations
 - pending clarification questions when outputs are ambiguous
@@ -44,6 +44,7 @@ python3 ~/.codex/skills/abc-calibration/scripts/abc_calibration.py create-projec
   --project-dir ./abc-run \
   --model-path ./model.py \
   --observed-path ./observed.json \
+  --parameter-bound theta=0:5 \
   --request-text "Estimate the unknown simulator parameters using likelihood-free calibration" \
   --pilot-size 1000 \
   --main-budget 20000 \
@@ -102,7 +103,9 @@ python3 ~/.codex/skills/abc-calibration/scripts/abc_calibration.py create-projec
 python3 ~/.codex/skills/abc-calibration/scripts/abc_calibration.py create-project \
   --project-dir ./abc-julia \
   --model-path ./simulate.jl \
-  --observed-path ./observed.csv
+  --observed-path ./observed.csv \
+  --parameter alpha \
+  --parameter-bound alpha=0:3
 ```
 
 The generated project creates `model/run_model.sh` and assumes the simulator accepts:
@@ -127,6 +130,8 @@ Adjust `model/run_model.sh` if the simulator uses a different interface.
 
 ## Tips
 
+- ABC project creation and calibration require explicit bounds for every parameter. If bounds are missing, stop and ask the user before proceeding.
+- `--parameter-bound` values are treated as exact hard bounds and are not widened or inferred heuristically.
 - Use `rmse` or `nrmse` for vector or time-series outputs.
 - Use `wasserstein` or `ks` for distributional outputs.
 - Use `mahalanobis` when correlated summary statistics matter.

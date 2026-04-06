@@ -24,7 +24,7 @@ from .metrics import (
     safe_vector,
     summarize_array,
 )
-from .priors import sample_prior_dict, summarize_priors
+from .priors import PriorError, require_exact_prior_bounds, sample_prior_dict, summarize_priors
 
 
 class InferenceError(RuntimeError):
@@ -390,6 +390,11 @@ def run_calibration(cfg: dict[str, Any], workdir: Path | str) -> dict[str, Any]:
     missing_priors = [name for name in parameter_names if name not in priors]
     if missing_priors:
         raise InferenceError(f"Missing priors for parameters: {missing_priors}")
+    try:
+        priors = require_exact_prior_bounds(parameter_names, priors)
+    except PriorError as exc:
+        raise InferenceError(str(exc)) from exc
+    cfg["priors"] = priors
 
     resolve_runtime_hyperparameters(cfg, observed_size=int(np.asarray(observed_array).size))
     two_phase = cfg["algorithm"]["two_phase"]

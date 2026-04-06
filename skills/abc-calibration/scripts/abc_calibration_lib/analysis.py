@@ -13,7 +13,7 @@ from typing import Any
 import numpy as np
 
 from .io_utils import load_observed_data, payload_to_array
-from .priors import default_point, recommend_prior, summarize_priors
+from .priors import apply_exact_bounds, bounds_match, default_point, extract_prior_bounds, summarize_priors
 
 
 class AnalysisError(RuntimeError):
@@ -193,7 +193,7 @@ def inspect_model_file(
     adapter = infer_adapter(model_path, command_template, equation_text)
     if equation_text:
         parameter_names = user_parameter_names or infer_equation_parameters(equation_text)
-        priors = user_priors or {name: recommend_prior(name) for name in parameter_names}
+        priors = user_priors or {}
         return {
             "adapter": "python_callable",
             "path": None,
@@ -204,7 +204,7 @@ def inspect_model_file(
             "public_functions": ["simulate"],
             "stochastic": False,
             "output_names": [],
-            "probe_point": {name: default_point(priors[name]) for name in parameter_names},
+            "probe_point": {name: default_point(priors[name]) for name in parameter_names if name in priors} or None,
             "probe_shape": None,
             "generated_from_equation": True,
         }
@@ -370,20 +370,38 @@ def build_prior_report(
 ) -> dict[str, Any]:
     priors: dict[str, Any] = {}
     provenance: dict[str, str] = {}
+    missing_bounds: list[str] = []
+    questions: list[str] = []
     explicit_priors = explicit_priors or {}
     parameter_bounds = parameter_bounds or {}
     for name in parameter_names:
-        if name in explicit_priors:
-            priors[name] = explicit_priors[name]
+        explicit_prior = explicit_priors.get(name)
+        explicit_bounds = extract_prior_bounds(explicit_prior) if explicit_prior is not None else None
+        requested_bounds = parameter_bounds.get(name)
+        if explicit_bounds is not None and requested_bounds is not None and not bounds_match(explicit_bounds, requested_bounds):
+            raise AnalysisError(
+                f"Conflicting bounds for parameter {name!r}: prior specifies {explicit_bounds}, but parameter-bound specifies {requested_bounds}."
+            )
+        bounds = requested_bounds or explicit_bounds
+        if bounds is None:
+            missing_bounds.append(name)
+            questions.append(
+                f"Please provide explicit prior bounds for parameter '{name}' before running ABC calibration, for example --parameter-bound {name}=LOWER:UPPER."
+            )
+            continue
+        if explicit_prior is not None:
+            priors[name] = apply_exact_bounds(explicit_prior, bounds)
             provenance[name] = "user"
             continue
-        bounds = parameter_bounds.get(name)
-        priors[name] = recommend_prior(name, default=parameter_defaults.get(name), bounds=bounds)
-        provenance[name] = "heuristic"
+        priors[name] = apply_exact_bounds({"dist": "uniform", "params": {"lower": bounds[0], "upper": bounds[1]}}, bounds)
+        provenance[name] = "user_bounds"
     return {
         "priors": priors,
         "provenance": provenance,
         "summary": summarize_priors(priors),
+        "missing_bounds": missing_bounds,
+        "questions": questions,
+        "ready": not missing_bounds,
     }
 
 
