@@ -33,6 +33,7 @@ Inspection returns:
 
 - inferred parameter names and defaults
 - required prior-bound questions when bounds are missing
+- the exact calibration parameter list when you provide `--parameter`
 - likelihood assessment
 - scaling, summary statistic, and distance recommendations
 - pending clarification questions when outputs are ambiguous
@@ -132,6 +133,7 @@ Adjust `model/run_model.sh` if the simulator uses a different interface.
 
 - ABC project creation and calibration require explicit bounds for every parameter. If bounds are missing, stop and ask the user before proceeding.
 - `--parameter-bound` values are treated as exact hard bounds and are not widened or inferred heuristically.
+- If you provide `--parameter`, the skill calibrates that full parameter list exactly as given and does not drop weak-effect parameters.
 - Use `rmse` or `nrmse` for vector or time-series outputs.
 - Use `wasserstein` or `ks` for distributional outputs.
 - Use `mahalanobis` when correlated summary statistics matter.

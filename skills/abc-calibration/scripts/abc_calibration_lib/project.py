@@ -342,6 +342,7 @@ def create_project(
         "notes": [
             "If the likelihood is tractable, prefer MCMC or VI unless you explicitly want likelihood-free calibration.",
             "ABC calibration requires explicit user-provided bounds for every parameter and uses those bounds exactly.",
+            "If the user names calibration parameters explicitly, the workflow keeps that full set even when some parameters are only weakly informed by the observed data.",
             "For non-Python models, verify model/run_model.sh matches the simulator's CLI contract before running.",
         ],
     }

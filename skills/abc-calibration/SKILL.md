@@ -23,6 +23,7 @@ This skill enforces a strict gating rule:
 3. If likelihood-based inference is feasible, recommend MCMC or variational inference before running ABC.
 4. Require explicit user-provided prior bounds for every inferred parameter before creating a project or running ABC.
 5. Use ABC-Rejection only when the likelihood is unavailable, implicit, or intractable, or when the user explicitly insists on ABC.
+6. If the user explicitly names calibration parameters, calibrate all of them exactly as requested and never drop any because they appear weakly sensitive or weakly identifiable.
 
 ## First-run workflow
 
@@ -92,6 +93,8 @@ Model adapter behavior:
    - if bounds are missing, ask the user to provide them and stop before calibration
    - if the user provides only bounds, build a uniform prior on those exact bounds
    - if the user provides a prior family, keep that family but enforce the exact same bounds during sampling
+   - if the user explicitly names calibration parameters, use that full list as the calibration target set in the exact order provided
+   - do not prune user-requested parameters based on effect size, apparent sensitivity, or small observed output variation
 5. Assess likelihood availability.
 6. Choose scaling, summary statistics, and distance metric.
 7. Run two-phase ABC-Rejection:
@@ -118,6 +121,13 @@ Prior behavior:
 - when `--parameter-bound` is provided, those exact bounds are enforced without heuristic adjustment
 - if a prior family is provided, the skill keeps the family but still enforces the exact user-provided bounds
 - if bounds are missing, ask the user for them and do not proceed with ABC estimation or calibration
+
+Parameter-selection behavior:
+
+- when the user provides `--parameter`, treat that list as authoritative
+- calibrate every parameter in that list
+- preserve the user-provided parameter order
+- if a requested parameter is weakly informed by the data, keep calibrating it and report that its posterior may remain close to the prior instead of dropping it
 
 Hyperparameters are configurable in `config.json` or during `create-project`:
 

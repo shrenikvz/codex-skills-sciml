@@ -105,7 +105,12 @@ def infer_adapter(model_path: str | None, command_template: str | None, equation
 
 
 
-def inspect_python_model(path: str, callable_name: str | None = None, priors: dict[str, Any] | None = None) -> dict[str, Any]:
+def inspect_python_model(
+    path: str,
+    callable_name: str | None = None,
+    priors: dict[str, Any] | None = None,
+    user_parameter_names: list[str] | None = None,
+) -> dict[str, Any]:
     target = Path(path).expanduser().resolve()
     if not target.exists():
         raise AnalysisError(f"Model path does not exist: {target}")
@@ -130,19 +135,29 @@ def inspect_python_model(path: str, callable_name: str | None = None, priors: di
     if not callable(fn):
         raise AnalysisError(f"Callable {chosen!r} not found in {target}")
     signature = inspect.signature(fn)
-    parameter_names: list[str] = []
+    signature_parameter_names: list[str] = []
     defaults: dict[str, Any] = {}
     for name, parameter in signature.parameters.items():
         if parameter.kind in {inspect.Parameter.VAR_KEYWORD, inspect.Parameter.VAR_POSITIONAL}:
             continue
-        parameter_names.append(name)
+        signature_parameter_names.append(name)
         if parameter.default is not inspect._empty:
             defaults[name] = parameter.default
     source = target.read_text(encoding="utf-8", errors="ignore").lower()
     stochastic = any(token in source for token in ["np.random", "random.", "rng", "stochastic"])
     call_style = "kwargs"
-    if len(parameter_names) == 1 and parameter_names[0] in {"params", "parameters"}:
+    if len(signature_parameter_names) == 1 and signature_parameter_names[0] in {"params", "parameters"}:
         call_style = "mapping"
+    parameter_names = list(signature_parameter_names)
+    if user_parameter_names:
+        requested_names = [name for name in user_parameter_names]
+        if call_style != "mapping":
+            missing = [name for name in requested_names if name not in set(signature_parameter_names)]
+            if missing:
+                raise AnalysisError(
+                    f"User-requested calibration parameters are not accepted by callable {chosen!r}: {missing}"
+                )
+        parameter_names = requested_names
 
     probe_point: dict[str, float] | None = None
     output_names: list[str] = []
@@ -172,7 +187,8 @@ def inspect_python_model(path: str, callable_name: str | None = None, priors: di
         "callable": chosen,
         "call_style": call_style,
         "parameter_names": parameter_names,
-        "parameter_defaults": defaults,
+        "parameter_defaults": {name: defaults[name] for name in parameter_names if name in defaults},
+        "available_parameter_names": signature_parameter_names,
         "public_functions": public_functions,
         "stochastic": stochastic,
         "output_names": output_names,
@@ -209,7 +225,12 @@ def inspect_model_file(
             "generated_from_equation": True,
         }
     if adapter == "python_callable" and model_path:
-        return inspect_python_model(model_path, callable_name=callable_name, priors=user_priors)
+        return inspect_python_model(
+            model_path,
+            callable_name=callable_name,
+            priors=user_priors,
+            user_parameter_names=user_parameter_names,
+        )
     if model_path:
         target = Path(model_path).expanduser().resolve()
         suffix = target.suffix

@@ -19,8 +19,32 @@ def simulate(theta):
     return np.asarray([theta, theta + 1.0, theta + 2.0], dtype=float)
 '''
 
+WEAK_EFFECT_MODEL_SOURCE = '''from __future__ import annotations
+import numpy as np
+
+def simulate(theta, nuisance):
+    return np.asarray([theta + 1e-6 * nuisance, theta + 1.0, theta + 2.0], dtype=float)
+'''
+
 
 class AbcCalibrationUnitTests(unittest.TestCase):
+    def test_user_parameter_list_is_authoritative_for_python_models(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = pathlib.Path(td)
+            model_path = root / "model.py"
+            observed_path = root / "observed.json"
+            model_path.write_text(WEAK_EFFECT_MODEL_SOURCE, encoding="utf-8")
+            observed_path.write_text(json.dumps([2.0, 3.0, 4.0]), encoding="utf-8")
+            info = inspect_model_inputs(
+                str(model_path),
+                str(observed_path),
+                user_parameter_names=["nuisance", "theta"],
+                parameter_bounds=["nuisance=0:10", "theta=0:4"],
+            )
+        self.assertEqual(info["model_analysis"]["parameter_names"], ["nuisance", "theta"])
+        self.assertEqual(info["model_analysis"]["available_parameter_names"], ["theta", "nuisance"])
+        self.assertEqual(list(info["prior_report"]["priors"].keys()), ["nuisance", "theta"])
+
     def test_inspect_model_requests_bounds_before_proceeding(self):
         with tempfile.TemporaryDirectory() as td:
             root = pathlib.Path(td)
@@ -167,6 +191,49 @@ class AbcCalibrationUnitTests(unittest.TestCase):
                 run_calibration(cfg, workdir=root)
 
         self.assertIn("Explicit prior bounds are required", str(exc.exception))
+
+    def test_weak_effect_parameter_is_still_calibrated(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = pathlib.Path(td)
+            model_path = root / "model.py"
+            model_path.write_text(WEAK_EFFECT_MODEL_SOURCE, encoding="utf-8")
+            observed_path = root / "observed.json"
+            observed_path.write_text(json.dumps([2.0, 3.0, 4.0]), encoding="utf-8")
+
+            cfg = clone_default_config()
+            cfg["objective"]["observed_path"] = str(observed_path)
+            cfg["model"].update(
+                {
+                    "adapter": "python_callable",
+                    "path": str(model_path),
+                    "callable": "simulate",
+                    "call_style": "kwargs",
+                    "parameter_names": ["theta", "nuisance"],
+                }
+            )
+            cfg["priors"] = {
+                "theta": {"dist": "uniform", "params": {"lower": 0.0, "upper": 4.0}},
+                "nuisance": {"dist": "uniform", "params": {"lower": 0.0, "upper": 10.0}},
+            }
+            cfg["summary_statistics"]["kind"] = "identity"
+            cfg["distance"]["metric"] = "rmse"
+            cfg["scaling"] = {"enabled": False, "mode": "none"}
+            cfg["algorithm"]["two_phase"].update(
+                {
+                    "pilot_size": 80,
+                    "accepted_samples": 20,
+                    "main_budget": 400,
+                    "epsilon_quantile": 0.1,
+                    "batch_size": 16,
+                }
+            )
+            cfg["compute"]["max_workers"] = 1
+
+            result = run_calibration(cfg, workdir=root)
+
+        self.assertGreater(result["posterior_samples"], 0)
+        self.assertIn("theta", result["posterior_summary"]["parameters"])
+        self.assertIn("nuisance", result["posterior_summary"]["parameters"])
 
 
 if __name__ == "__main__":
